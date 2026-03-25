@@ -224,7 +224,81 @@
   .add-habit-btn { display: flex; align-items: center; gap: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); background: none; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 14px; cursor: pointer; width: 100%; margin-bottom: 14px; transition: color 0.15s, border-color 0.15s, background 0.15s; }
   .add-habit-btn:hover { color: var(--ink); border-color: var(--muted); background: var(--paper); }
 
-  @media (max-width: 600px) {
+  /* Feedback */
+  .feedback-fab {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--ink);
+    color: white;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 11px 18px;
+    border-radius: 50px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    transition: opacity 0.15s, transform 0.15s;
+    z-index: 100;
+  }
+  .feedback-fab:hover { opacity: 0.88; transform: translateY(-1px); }
+  .feedback-fab svg { flex-shrink: 0; }
+
+  .feedback-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .feedback-overlay.open { display: flex; }
+  .feedback-modal {
+    background: var(--paper);
+    border-radius: 16px;
+    padding: 28px;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .feedback-modal h2 { font-family: 'DM Serif Display', serif; font-size: 22px; font-weight: 400; color: var(--ink); margin-bottom: 4px; }
+  .feedback-modal p { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+  .feedback-stars { display: flex; gap: 8px; margin-bottom: 20px; }
+  .star-btn { font-size: 26px; background: none; border: none; cursor: pointer; opacity: 0.25; transition: opacity 0.1s, transform 0.1s; padding: 0; line-height: 1; }
+  .star-btn.active { opacity: 1; transform: scale(1.1); }
+  .star-btn:hover { opacity: 0.8; }
+  .feedback-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 8px; }
+  .feedback-textarea {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--ink);
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    width: 100%;
+    resize: vertical;
+    min-height: 100px;
+    outline: none;
+    transition: border-color 0.15s;
+    margin-bottom: 20px;
+  }
+  .feedback-textarea:focus { border-color: var(--c1); }
+  .feedback-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .feedback-cancel { font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--muted); background: none; border: none; cursor: pointer; padding: 8px 14px; border-radius: 6px; transition: color 0.1s; }
+  .feedback-cancel:hover { color: var(--ink); }
+  .feedback-submit { font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; color: white; background: var(--ink); border: none; border-radius: 6px; padding: 9px 20px; cursor: pointer; transition: opacity 0.15s; }
+  .feedback-submit:hover { opacity: 0.82; }
+  .feedback-thanks { text-align: center; padding: 12px 0 4px; }
+  .feedback-thanks-icon { font-size: 36px; margin-bottom: 10px; }
+  .feedback-thanks h3 { font-family: 'DM Serif Display', serif; font-size: 20px; font-weight: 400; margin-bottom: 6px; }
+  .feedback-thanks p { font-size: 13px; color: var(--muted); }
     .stats-bar { grid-template-columns: repeat(2, 1fr); }
     .day-grid { gap: 4px; } .day-card { padding: 7px 5px 6px; } .chk-lbl { max-width: 44px; }
     .setup-habit-short { display: none; }
@@ -323,6 +397,42 @@
   </div>
 
 </div>
+
+<!-- Feedback FAB -->
+<button class="feedback-fab" onclick="openFeedback()">
+  <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M13 1H2C1.45 1 1 1.45 1 2v9c0 .55.45 1 1 1h2v2.5l3.5-2.5H13c.55 0 1-.45 1-1V2c0-.55-.45-1-1-1z" stroke="white" stroke-width="1.3" stroke-linejoin="round"/></svg>
+  Feedback
+</button>
+
+<!-- Feedback Modal -->
+<div class="feedback-overlay" id="feedbackOverlay" onclick="handleOverlayClick(event)">
+  <div class="feedback-modal" id="feedbackModal">
+    <div id="feedbackForm">
+      <h2>Share your thoughts</h2>
+      <p>Takes 30 seconds — helps make the app better.</p>
+      <div class="feedback-label">How would you rate the app?</div>
+      <div class="feedback-stars" id="feedbackStars">
+        <button class="star-btn" data-val="1" onclick="setRating(1)">⭐</button>
+        <button class="star-btn" data-val="2" onclick="setRating(2)">⭐</button>
+        <button class="star-btn" data-val="3" onclick="setRating(3)">⭐</button>
+        <button class="star-btn" data-val="4" onclick="setRating(4)">⭐</button>
+        <button class="star-btn" data-val="5" onclick="setRating(5)">⭐</button>
+      </div>
+      <div class="feedback-label">Any feedback or suggestions?</div>
+      <textarea class="feedback-textarea" id="feedbackText" placeholder="What do you love? What would you change?"></textarea>
+      <div class="feedback-actions">
+        <button class="feedback-cancel" onclick="closeFeedback()">Cancel</button>
+        <button class="feedback-submit" onclick="submitFeedback()">Submit →</button>
+      </div>
+    </div>
+    <div id="feedbackThanks" class="feedback-thanks" style="display:none">
+      <div class="feedback-thanks-icon">🙏</div>
+      <h3>Thank you!</h3>
+      <p>Your feedback helps improve the app for everyone.</p>
+    </div>
+  </div>
+</div>
+
 <script>
 const WEEKS = [
   { label:"Week 1", theme:"Build momentum", days:7 },
@@ -616,6 +726,45 @@ function renderQuote(q) {
   const today=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   const greeting=userName?`${userName} — `:'';
   document.getElementById('quoteBlock').innerHTML=`<div class="quote-text">${greeting}"${q.quote}"</div><div class="quote-meta">${q.author} &nbsp;·&nbsp; ${today}</div>`;
+}
+
+/* ── FEEDBACK ── */
+let feedbackRating = 0;
+
+function openFeedback() {
+  document.getElementById('feedbackOverlay').classList.add('open');
+  document.getElementById('feedbackForm').style.display = 'block';
+  document.getElementById('feedbackThanks').style.display = 'none';
+  feedbackRating = 0;
+  document.querySelectorAll('.star-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('feedbackText').value = '';
+}
+
+function closeFeedback() {
+  document.getElementById('feedbackOverlay').classList.remove('open');
+}
+
+function handleOverlayClick(e) {
+  if (e.target === document.getElementById('feedbackOverlay')) closeFeedback();
+}
+
+function setRating(val) {
+  feedbackRating = val;
+  document.querySelectorAll('.star-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.val) <= val);
+  });
+}
+
+function submitFeedback() {
+  const text = document.getElementById('feedbackText').value.trim();
+  if (!feedbackRating && !text) { alert('Please add a rating or some feedback before submitting.'); return; }
+  const formUrl = 'https://forms.gle/RooVW9mLfL6Kz2Km7';
+  // Open Google Form in a new tab
+  window.open(formUrl, '_blank');
+  // Show thank you screen
+  document.getElementById('feedbackForm').style.display = 'none';
+  document.getElementById('feedbackThanks').style.display = 'block';
+  setTimeout(closeFeedback, 2800);
 }
 
 function init() {
