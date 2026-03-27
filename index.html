@@ -224,6 +224,54 @@
   .add-habit-btn { display: flex; align-items: center; gap: 7px; font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); background: none; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 14px; cursor: pointer; width: 100%; margin-bottom: 14px; transition: color 0.15s, border-color 0.15s, background 0.15s; }
   .add-habit-btn:hover { color: var(--ink); border-color: var(--muted); background: var(--paper); }
 
+  /* Habit suggestions */
+  .suggest-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    min-height: 22px;
+  }
+  .suggest-status {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .suggest-spinner {
+    width: 11px; height: 11px;
+    border: 1.5px solid var(--border);
+    border-top-color: var(--muted);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+    display: none;
+  }
+  .suggest-spinner.active { display: block; }
+  .suggest-regen {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    transition: color 0.1s;
+  }
+  .suggest-regen:hover { color: var(--ink); }
+  .suggest-regen.visible { display: flex; }
+  .setup-habit-row { position: relative; transition: opacity 0.2s; }
+  .setup-habit-row.loading { opacity: 0.4; pointer-events: none; }
+  @keyframes habitFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .setup-habit-row.suggested { animation: habitFadeIn 0.25s ease both; }
+
   /* Feedback */
   .feedback-fab {
     position: fixed;
@@ -331,6 +379,16 @@
 
     <div class="setup-section">
       <div class="setup-label">Your habits <span style="font-weight:400;text-transform:none;letter-spacing:0">(name + short label — add 2 to 6)</span></div>
+      <div class="suggest-bar">
+        <div class="suggest-status">
+          <div class="suggest-spinner" id="suggestSpinner"></div>
+          <span id="suggestStatusText"></span>
+        </div>
+        <button class="suggest-regen" id="suggestRegenBtn" onclick="suggestHabits(true)">
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M9.5 5.5A4 4 0 1 1 7 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><polyline points="7,1 7,3 9,3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Regenerate
+        </button>
+      </div>
       <div class="setup-habits" id="setupHabits"></div>
     </div>
 
@@ -466,6 +524,14 @@ function initSetupForm() {
   document.getElementById('setupDate').value = new Date().toISOString().slice(0,10);
   document.getElementById('setupTitle').value = '';
   document.getElementById('setupName').value = '';
+  lastSuggestedTitle = '';
+  const statusText = document.getElementById('suggestStatusText');
+  const regenBtn = document.getElementById('suggestRegenBtn');
+  const spinner = document.getElementById('suggestSpinner');
+  if (statusText) statusText.textContent = 'Type a challenge name to get habit suggestions';
+  if (regenBtn) regenBtn.classList.remove('visible');
+  if (spinner) spinner.classList.remove('active');
+
   document.getElementById('setupHabits').innerHTML = SETUP_DEFAULTS.map((h,i) => `
     <div class="setup-habit-row">
       <div class="setup-swatch" style="background:${COLOR_VARS[i]}"></div>
@@ -473,6 +539,88 @@ function initSetupForm() {
       <input class="setup-habit-name" id="shn${i}" type="text" placeholder="Habit name…" maxlength="40" />
       <input class="setup-habit-short" id="shs${i}" type="text" placeholder="Short label" maxlength="20" />
     </div>`).join('');
+
+  // Wire up title input to suggest habits on blur (when user leaves the field)
+  const titleInput = document.getElementById('setupTitle');
+  titleInput.removeEventListener('blur', onTitleBlur);
+  titleInput.addEventListener('blur', onTitleBlur);
+}
+
+/* ── HABIT SUGGESTIONS ── */
+let suggestDebounce = null;
+let lastSuggestedTitle = '';
+
+function onTitleBlur() {
+  const title = document.getElementById('setupTitle').value.trim();
+  if (!title || title.length < 3) return;
+  suggestHabits(false);
+}
+
+async function suggestHabits(force) {
+  const title = document.getElementById('setupTitle').value.trim();
+  if (!title || title.length < 3) return;
+  if (!force && title === lastSuggestedTitle) return;
+  lastSuggestedTitle = title;
+
+  // Show loading state
+  const spinner = document.getElementById('suggestSpinner');
+  const statusText = document.getElementById('suggestStatusText');
+  const regenBtn = document.getElementById('suggestRegenBtn');
+  const container = document.getElementById('setupHabits');
+
+  spinner.classList.add('active');
+  statusText.textContent = 'Suggesting habits…';
+  regenBtn.classList.remove('visible');
+  container.querySelectorAll('.setup-habit-row').forEach(r => r.classList.add('loading'));
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: `You suggest exactly 6 daily habits for a 30-day challenge. Respond ONLY with valid JSON — no markdown, no preamble. Format: {"habits": [{"name": "...", "short": "...", "icon": "..."}]}. Rules: name is 2-4 words max, short is the daily micro-action (5 words max), icon is a single relevant emoji. Make habits specific, actionable, and directly relevant to the challenge title. Vary the habits — don't repeat themes.`,
+        messages: [{ role: 'user', content: `Suggest 6 daily habits for a 30-day challenge called: "${title}". JSON only.` }]
+      })
+    });
+
+    const data = await res.json();
+    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    const parsed = JSON.parse(text.trim());
+    const suggestions = parsed.habits.slice(0, 6);
+
+    // Fill rows with staggered animation
+    container.innerHTML = suggestions.map((h, i) => `
+      <div class="setup-habit-row suggested" style="animation-delay:${i * 0.06}s">
+        <div class="setup-swatch" style="background:${COLOR_VARS[i]}"></div>
+        <span class="setup-habit-icon">${h.icon}</span>
+        <input class="setup-habit-name" id="shn${i}" type="text" value="${h.name.replace(/"/g,'&quot;')}" maxlength="40" />
+        <input class="setup-habit-short" id="shs${i}" type="text" value="${h.short.replace(/"/g,'&quot;')}" maxlength="20" />
+      </div>`).join('');
+
+    // Pad to 6 if fewer returned
+    for (let i = suggestions.length; i < 6; i++) {
+      const row = document.createElement('div');
+      row.className = 'setup-habit-row';
+      row.innerHTML = `
+        <div class="setup-swatch" style="background:${COLOR_VARS[i]}"></div>
+        <span class="setup-habit-icon">${SETUP_DEFAULTS[i].icon}</span>
+        <input class="setup-habit-name" id="shn${i}" type="text" placeholder="Habit name…" maxlength="40" />
+        <input class="setup-habit-short" id="shs${i}" type="text" placeholder="Short label" maxlength="20" />`;
+      container.appendChild(row);
+    }
+
+    spinner.classList.remove('active');
+    statusText.textContent = `6 habits suggested for "${title}"`;
+    regenBtn.classList.add('visible');
+
+  } catch(e) {
+    spinner.classList.remove('active');
+    statusText.textContent = 'Could not suggest habits — fill in manually.';
+    container.querySelectorAll('.setup-habit-row').forEach(r => r.classList.remove('loading'));
+    regenBtn.classList.add('visible');
+  }
 }
 
 function startChallenge() {
